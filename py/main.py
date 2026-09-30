@@ -26,45 +26,50 @@ options = HandLandmarkerOptions(
     min_tracking_confidence=0.5
 )
 
-cap = cv2.VideoCapture(0)
+def draw_hand_landmarks(frame, hand_landmarks):
+    height, width = frame.shape[:2]
 
-with HandLandmarker.create_from_options(options) as landmarker:
-    print("Iniciando câmara com deteção de mãos... Prima 'q' para sair.")
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            continue
+    for start, end in HAND_CONNECTIONS:
+        point_start = hand_landmarks[start]
+        point_end = hand_landmarks[end]
+        position_start = (int(point_start.x * width), int(point_start.y * height))
+        position_end = (int(point_end.x * width), int(point_end.y * height))
+        cv2.line(frame, position_start, position_end, (0, 255, 0), 2)
 
-        frame = cv2.flip(frame, 1)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+    for landmark in hand_landmarks:
+        center = (int(landmark.x * width), int(landmark.y * height))
+        cv2.circle(frame, center, 5, (0, 0, 255), -1)
 
-        # Timestamp em milissegundos exigido pelo modo VIDEO
-        timestamp_ms = int(time.time() * 1000)
-        detection_result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
-        h, w, _ = frame.shape
+def main():
+    cap = cv2.VideoCapture(0)
 
-        # Desenho manual dos pontos e ligações
-        if detection_result.hand_landmarks:
-            for hand_landmarks in detection_result.hand_landmarks:
-                # Desenhar as linhas entre as articulações
-                for connection in HAND_CONNECTIONS:
-                    pt1 = hand_landmarks[connection[0]]
-                    pt2 = hand_landmarks[connection[1]]
-                    p1 = (int(pt1.x * w), int(pt1.y * h))
-                    p2 = (int(pt2.x * w), int(pt2.y * h))
-                    cv2.line(frame, p1, p2, (0, 255, 0), 2)
+    try:
+        with HandLandmarker.create_from_options(options) as landmarker:
+            print("Iniciando câmara com deteção de mãos... Prima 'q' para sair.")
+            while cap.isOpened():
+                success, frame = cap.read()
+                if not success:
+                    continue
 
-                # Desenhar os círculos em cada um dos 21 pontos
-                for landmark in hand_landmarks:
-                    cx, cy = int(landmark.x * w), int(landmark.y * h)
-                    cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
+                frame = cv2.flip(frame, 1)
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-        cv2.imshow("Deteccao Libras - MediaPipe Tasks", frame)
+                timestamp_ms = int(time.time() * 1000)
+                detection_result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+                for hand_landmarks in detection_result.hand_landmarks:
+                    draw_hand_landmarks(frame, hand_landmarks)
 
-cap.release()
-cv2.destroyAllWindows()
+                cv2.imshow("Deteccao Libras - MediaPipe Tasks", frame)
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
